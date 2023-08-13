@@ -11,44 +11,85 @@ def flattenDictionary(d):
             flat_dict[key] = val
     return flat_dict
 
-datafilepath = input("Input the desired filepath for the text file data.")
-dataoutput = input("Input the desired filepath for writing the .csv output")
+def normaltest(dataFromFile):
+    for i in dataFromFile:
+        try:
+            Platformname = re.search(r'(?<=Platform: )(.*)', i, flags=re.IGNORECASE).group()
+        except:
+            pass
+        try:
+            DAUname = re.search(r'(?<=DAU SN: )(.*)', i, flags=re.IGNORECASE).group()
+        except:
+            pass
+        try:
+            x = re.search(r'(?<=Test.: )(.*?)(?= ...:)', i, flags=re.IGNORECASE).group() + ' ' + re.search(r'Cmd: (.*?)(?= )', i, flags=re.IGNORECASE).group()  #this will be the keys for the dictionary, the test names
+        except:
+            continue
+        templist = i.partition("Cmd: ") # couldn't find elegant solution, gave up and made a temporary size 3 tuple and used re.search because it will only find the first occurrence
+        y = re.search(r'(?<=Actual: )(.*?)(?= )', templist[2]).group() #this will be the values
+        dataDict[x].append(y)
 
+    if not dataDict:
+        raise SystemExit("File contained no appropriate data.")
+
+    ColumnLabel = DAUname + ' ' + Platformname
+    LabelDict = {'Test#' : ColumnLabel}
+    pdReadyDict = LabelDict
+    for d in dataDict: pdReadyDict.update(dataDict)
+    flatpdreadydict = flattenDictionary(pdReadyDict)
+    return flatpdreadydict
+
+def SandBoxTest(dataFromFile):
+    for i in dataFromFile:
+        try:
+            SerialNumber = re.search(r'UUT Serial Number: (.*?)[\s]', i, flags=re.IGNORECASE).group()
+        except:
+            pass
+        try:
+            TestSettings = re.search(r'Tester Loads = (.*),', i, flags=re.IGNORECASE).group() + ' ' + re.search(r'Configuration = (.*)', i, flags=re.IGNORECASE).group().strip() + ' '
+        except:
+            pass
+        try:
+            StateTolerance = re.search(r'State Tolerance(.*?)V', i, flags=re.IGNORECASE).group().strip() + ' '
+        except:
+            pass
+        try:
+            Digital = ' '.join(re.search(r'DOUT(.*)tive', i, flags=re.IGNORECASE).group().split())
+            x = TestSettings + StateTolerance + Digital
+            y = re.search(r'(?<=<  )(.*?)(?=<)', i, flags=re.IGNORECASE).group().strip()
+        except:
+            try:
+                x = re.search(r'A0(.*?)V', i, flags=re.IGNORECASE).group().strip()
+                y = re.search(r'(?<=V )(.*?)V', i, flags=re.IGNORECASE).group().strip()
+            except:
+                continue
+        dataDict[x].append(y)
+
+    ColumnLabel = SerialNumber
+    LabelDict = {'Testing' : ColumnLabel}
+    pdReadyDict = LabelDict
+    for d in dataDict: pdReadyDict.update(dataDict)
+    
+    if not dataDict:
+        raise SystemExit("File contained no appropriate data.")
+    return pdReadyDict
+
+datafilepath = input("Input the filepath of the test data: ")   #gotta compensate for '\' escape characters,  input() function returns the exact input without allowing those
 dataFile = open(datafilepath, "r")
 
-dataFromFile = dataFile.read()
-dataFromFile = dataFromFile.split("\n") #Text file, but tests are on various lines, so that's the natural delimiter
+dataoutput = input("Input the desired output filepath: ")
 
-dataDict = defaultdict(list) #defaultdict allows you to append multiple values to a key as a list instead of overwriting, without any hassle on my part
+data = dataFile.read()
+data = data.split("\n") #Text file, but tests are on various lines, so that's the natural delimiter
 
-for i in dataFromFile:
-    try:
-        Platformname = re.search(r'(?<=Platform: )(.*)', i, flags=re.IGNORECASE).group()
-    except:
-        pass
-    try:
-        DAUname = re.search(r'(?<=DAU SN: )(.*)', i, flags=re.IGNORECASE).group()
-    except:
-        pass
-    try:
-        x = re.search(r'(?<=Test.: )(.*?)(?= ...:)', i, flags=re.IGNORECASE).group() + ' ' + re.search(r'Cmd: (.*?)(?= )', i, flags=re.IGNORECASE).group()  #this will be the keys for the dictionary, the test names
-    except:
-        continue #skip lines that don't contain the test data.
-    templist = i.partition("Cmd: ") #made a temporary partition and used re.search because it will only find the first occurrence.  The data comes after actual, and the important data is after the Cmd value.
-    y = re.search(r'(?<=Actual: )(.*?)(?= )', templist[2]).group() #this will be the values
-    dataDict[x].append(y)
+dataDict = defaultdict(list) #defaultdict allows you to append multiple values to a key instead of overwriting, without any hassle on my part
 
-if not dataDict:
-    raise SystemExit("File contained no appropriate data.") #dictionaries are falsy.
-
-ColumnLabel = DAUname + ' ' + Platformname
-LabelDict = {'Test#' : ColumnLabel}
-pdReadyDict = LabelDict #getting ready to update, could probably just use LabelDict.
-for d in dataDict: pdReadyDict.update(dataDict) #just appends the data after the "header"
-flatpdreadydict = flattenDictionary(pdReadyDict) #runs the flattening code from earlier.  The data comes with many duplicates without data, but which may have data in the future, so they can't be deleted.
+if "SandBox" in datafilepath:
+    pdready = SandBoxTest(data)
+else:
+    pdready = normaltest(data)
 
 #PandasFrame = pandas.DataFrame.from_dict(dataDict)  Dataframe won't take varying lengths like this
-#could actually probably start using dataframe.from_dict() again, since I'm now flattening the data.
-PandasFrame = pandas.DataFrame({k: pandas.Series(v) for k,v in flatpdreadydict.items()}) #taking key/values and putting them into an array, and mushing them together
-excelReadyPandasFrame = PandasFrame.transpose(copy=True) #want rows to be new data, rather than columns. Eventually, the columns will be merged into one     file to do some data analysis.
+PandasFrame = pandas.DataFrame({k: pandas.Series(v) for k,v in pdready.items()}) #series are just arrays, in this we're taking key/values and putting them into an array, and mushing them together
+excelReadyPandasFrame = PandasFrame.transpose(copy=True)
 excelReadyPandasFrame.to_csv(dataoutput)
