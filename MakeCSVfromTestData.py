@@ -1,6 +1,8 @@
 import pandas
 from collections import defaultdict
+import glob
 import re
+from pathlib import Path
 
 def flattenDictionary(d):
     flat_dict = {}
@@ -74,22 +76,56 @@ def SandBoxTest(dataFromFile):
         raise SystemExit("File contained no appropriate data.")
     return pdReadyDict
 
-datafilepath = input("Input the filepath of the test data: ")   #gotta compensate for '\' escape characters,  input() function returns the exact input without allowing those
-dataFile = open(datafilepath, "r")
+WantBatch = None
+while WantBatch is None:
+    Test = input('If you want to use the whole folder method instead of single file, type True. Otherwise, just hit enter ')
+    if Test == "True" or Test == "true":
+        WantBatch = True
+    else: 
+        WantBatch = False
 
-dataoutput = input("Input the desired output filepath: ")
+if WantBatch:
+    inputfilepath = input('Type the filepath to the folder you want to execute on: ')
+    files = glob.glob(f'{inputfilepath}\\*')
+    dataoutput = input('Type the filepath to the EMPTY(easier to find relevant files) folder you want the output files: ')
 
-data = dataFile.read()
-data = data.split("\n") #Text file, but tests are on various lines, so that's the natural delimiter
-
-dataDict = defaultdict(list) #defaultdict allows you to append multiple values to a key instead of overwriting, without any hassle on my part
-
-if "SandBox" in datafilepath:
-    pdready = SandBoxTest(data)
 else:
-    pdready = normaltest(data)
+    datafilepath = input("Input the filepath of the test data: ")   #when testing, gotta compensate for '\' escape characters.  input() function returns the exact input without allowing those
+    dataFile = open(datafilepath, "r")
+    dataoutput = input("Input the desired output filepath: ")
+    dataDict = defaultdict(list)
 
-#PandasFrame = pandas.DataFrame.from_dict(dataDict)  Dataframe won't take varying lengths like this
-PandasFrame = pandas.DataFrame({k: pandas.Series(v) for k,v in pdready.items()}) #series are just arrays, in this we're taking key/values and putting them into an array, and mushing them together
-excelReadyPandasFrame = PandasFrame.transpose(copy=True)
-excelReadyPandasFrame.to_csv(dataoutput)
+
+
+if WantBatch:
+
+    for file in files:
+        datafilepath = file
+        outputfilepath = dataoutput + file.removeprefix(inputfilepath).removesuffix('.txt') + '_converted.csv'
+        dataFile = open(datafilepath, "r")
+        data = dataFile.read()
+        data = data.split("\n")
+        dataDict = defaultdict(list)
+        if "SandBox" in datafilepath:
+            pdready = SandBoxTest(data)
+        else:
+            pdready = normaltest(data)
+        PandasFrame = pandas.DataFrame({k: pandas.Series(v) for k,v in pdready.items()})
+        excelReadyPandasFrame = PandasFrame.transpose(copy=True)
+        excelReadyPandasFrame.to_csv(outputfilepath)
+    
+    raise SystemExit("Finished")
+
+else:
+    data = dataFile.read()
+    data = data.split("\n") #Text file, but tests are on various lines, so that's the natural delimiter
+
+    if "SandBox" in datafilepath:
+        pdready = SandBoxTest(data)
+    else:
+        pdready = normaltest(data)
+
+    #PandasFrame = pandas.DataFrame.from_dict(dataDict)  Dataframe won't take varying lengths like this
+    PandasFrame = pandas.DataFrame({k: pandas.Series(v) for k,v in pdready.items()}) #series are just arrays, in this we're taking key/values and putting them into an array, and mushing them together
+    excelReadyPandasFrame = PandasFrame.transpose(copy=True)
+    excelReadyPandasFrame.to_csv(dataoutput)
