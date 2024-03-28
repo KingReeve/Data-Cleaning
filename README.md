@@ -1,3 +1,3 @@
 # Data-Cleaning
 
-Business wanted some help getting their testing data into excel in a usable state.  Python, using pandas, defaultdict, and regex.
+Python, Regex, pandas, defaultdict. Cleaning test data, Just putting it up here to avoid having to redo such a script from scratch.
